@@ -7,6 +7,26 @@ import settingsModule from './settings.js';
 import { sortModelObjects } from './modelSort.js';
 
 const API_BASE = window.location.origin;
+const FAVORITES_KEY = 'odysseus-model-favorites';
+
+function _loadFavorites() {
+  try { return JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'); }
+  catch { return []; }
+}
+function _saveFavorites(list) {
+  try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(list)); } catch {}
+}
+function _isFavorite(mid) {
+  return _loadFavorites().includes(mid);
+}
+function _toggleFavorite(mid) {
+  const favs = _loadFavorites();
+  const idx = favs.indexOf(mid);
+  if (idx >= 0) favs.splice(idx, 1);
+  else favs.push(mid);
+  _saveFavorites(favs);
+  return idx < 0; // returns true if now favorited
+}
 
 // ── Shared keyboard nav for model pickers ──
 function _handlePickerKeydown(e, listEl, itemSelector, closeFn) {
@@ -174,8 +194,8 @@ function _initModelPickerDropdown() {
       searchRow.classList.toggle('searching', !!filter);
     }
 
-    // Load favorites
-    const favs = (function() { try { return JSON.parse(localStorage.getItem('odysseus-model-favorites') || '[]'); } catch { return []; } })();
+    // Load favorites (shared with models.js — same localStorage key)
+    const favs = _loadFavorites();
 
     // Partition: favorites first, then rest
     const favModels = [];
@@ -202,6 +222,24 @@ function _initModelPickerDropdown() {
         row.style.opacity = '0.45';
         row.title = `Local server appears offline: ${m.staleReason}. Click to try anyway, or relaunch in Cookbook.`;
       }
+      // Favorite star — click toggles persistence, doesn't pick the model
+      const favBtn = document.createElement('span');
+      const _favActive = _isFavorite(m.mid);
+      favBtn.className = 'model-switch-fav' + (_favActive ? ' active' : '');
+      favBtn.title = _favActive ? 'Remove from favorites' : 'Add to favorites';
+      favBtn.setAttribute('role', 'button');
+      favBtn.setAttribute('aria-label', favBtn.title);
+      favBtn.setAttribute('aria-pressed', _favActive ? 'true' : 'false');
+      favBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const nowFav = _toggleFavorite(m.mid);
+        uiModule.showToast(nowFav ? `Pinned ${m.display} to top` : `Unpinned ${m.display}`);
+        // Re-render immediately so the row moves between the Favorites and
+        // All-models sections without the user having to reopen the picker.
+        // Preserve whatever is currently typed in the search box.
+        _populate(search ? search.value : '');
+      });
+      row.appendChild(favBtn);
       const _mlogo = providerLogo(m.mid);
       if (_mlogo) {
         const logoSpan = document.createElement('span');
@@ -226,7 +264,10 @@ function _initModelPickerDropdown() {
       const _epDisplay = m.epName && !m.display.toLowerCase().includes(m.epName.toLowerCase().split('/').pop()) ? m.epName : '';
       epSpan.textContent = _epDisplay;
       row.appendChild(epSpan);
-      row.addEventListener('click', () => _pick(m));
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.model-switch-fav')) return;
+        _pick(m);
+      });
       listEl.appendChild(row);
     }
 
