@@ -405,6 +405,14 @@ def setup_chat_routes(
         # Plan mode is a modifier on agent mode — it only makes sense with tools.
         if plan_mode:
             chat_mode = "agent"
+        # An approved plan being EXECUTED: the frontend sends the checklist back
+        # on each turn so we can pin it in context. This way a long plan on a
+        # weak model survives history truncation — the agent can always re-read
+        # the plan. Ignored while still proposing (plan_mode on). Capped so a
+        # huge plan can't blow the prompt.
+        approved_plan = ""
+        if not plan_mode:
+            approved_plan = (form_data.get("approved_plan") or "").strip()[:8192]
         # Did the USER explicitly pick agent mode? (vs. us auto-escalating
         # below). Skill extraction should only learn from real agent sessions,
         # not chats we quietly promoted for a notes/calendar intent.
@@ -1027,6 +1035,7 @@ def setup_chat_routes(
                         fallbacks=_fallback_candidates,
                         workspace=workspace or None,
                         plan_mode=plan_mode,
+                        approved_plan=approved_plan or None,
                     ):
                         if chunk.startswith("data: ") and not chunk.startswith("data: [DONE]"):
                             try:
@@ -1048,6 +1057,7 @@ def setup_chat_routes(
                                     "doc_update", "doc_suggestions", "ui_control",
                                     "rounds_exhausted",
                                     "ask_user",
+                                    "plan_update",
                                 ):
                                     if data.get("type") == "agent_step":
                                         _agent_rounds = max(_agent_rounds, data.get("round", 1))
