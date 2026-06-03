@@ -67,4 +67,9 @@ export function closePlanWindow() {
   if (_modal) _modal.style.display = 'none';
 }
 
-export default { openPlanWindow, closePlanWindow };
+/** True when the plan window is currently visible (for live-refresh on progress). */
+export function isPlanWindowOpen() {
+  return !!(_modal && _modal.style.display !== 'none');
+}
+
+export default { openPlanWindow, closePlanWindow, isPlanWindowOpen };
