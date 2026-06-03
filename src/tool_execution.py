@@ -992,6 +992,10 @@ async def _direct_fallback(
 
         if tool == "git":
             import shlex
+            import shutil
+            git_bin = shutil.which("git")
+            if not git_bin:
+                return {"error": "git: not installed on the server.", "exit_code": 1}
             if not workspace:
                 return {"error": "git: set a workspace (the repo folder) first.", "exit_code": 1}
             raw = (content or "").strip()
@@ -1008,7 +1012,7 @@ async def _direct_fallback(
             if sub in _GIT_BLOCKED or sub not in _GIT_ALLOWED:
                 return {"error": f"git: subcommand '{sub}' is not allowed.", "exit_code": 1}
             base = os.path.realpath(workspace)
-            cmd = ["git", "-C", base]
+            cmd = [git_bin, "-C", base]
             # Inject a commit identity so commits work without a configured
             # user (and the tool never touches stored git config).
             if sub == "commit":
@@ -1040,21 +1044,30 @@ async def _direct_fallback(
                     raw = raw[len(_p):].strip()
             if not raw:
                 return {"error": "forge: provide a command, e.g. pr create / pr list / issue view 5.", "exit_code": 1}
+            # Resolve CLI binaries to full paths (reliable on Windows too).
+            gh_path, glab_path = shutil.which("gh"), shutil.which("glab")
             # Pick the CLI from the origin remote host, else whatever's installed.
             def _origin_host():
+                git_bin = shutil.which("git")
+                if not git_bin:
+                    return ""
                 try:
-                    r = subprocess.run(["git", "-C", base, "remote", "get-url", "origin"],
+                    r = subprocess.run([git_bin, "-C", base, "remote", "get-url", "origin"],
                                        capture_output=True, text=True, timeout=5)
                     return (r.stdout or "").lower()
                 except Exception:
                     return ""
             host = _origin_host()
             if "gitlab" in host:
-                cli = "glab" if shutil.which("glab") else None
+                cli, cli_path = ("glab", glab_path) if glab_path else (None, None)
             elif "github" in host:
-                cli = "gh" if shutil.which("gh") else None
+                cli, cli_path = ("gh", gh_path) if gh_path else (None, None)
+            elif gh_path:
+                cli, cli_path = "gh", gh_path
+            elif glab_path:
+                cli, cli_path = "glab", glab_path
             else:
-                cli = "gh" if shutil.which("gh") else ("glab" if shutil.which("glab") else None)
+                cli, cli_path = None, None
             if not cli:
                 return {"error": "forge: no forge CLI available — install `gh` (GitHub) or `glab` (GitLab) and authenticate it.", "exit_code": 1}
             try:
@@ -1071,7 +1084,7 @@ async def _direct_fallback(
                 return {"error": f"forge: '{top}' is not allowed (use pr/mr, issue, repo, release, label).", "exit_code": 1}
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    cli, *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                    cli_path, *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                     env=_subproc_env, cwd=base,
                 )
                 stdout, stderr, rc, timed_out = await _run_subprocess_streaming(

@@ -1473,11 +1473,12 @@ def _workspace_git_context(workspace: str) -> str:
         return ""
     try:
         base = os.path.realpath(workspace)
-        if not os.path.isdir(base) or not shutil.which("git"):
+        git_bin = shutil.which("git")
+        if not os.path.isdir(base) or not git_bin:
             return ""
 
         def _g(*a):
-            return subprocess.run(["git", "-C", base, *a], capture_output=True, text=True, timeout=5)
+            return subprocess.run([git_bin, "-C", base, *a], capture_output=True, text=True, timeout=5)
 
         if _g("rev-parse", "--is-inside-work-tree").returncode != 0:
             return ""  # not a git repo
