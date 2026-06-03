@@ -1791,6 +1791,11 @@ async def stream_agent_loop(
     _doc_opened = False    # whether doc_stream_open was sent
     _doc_last_len = 0      # last content length sent
 
+    # Set when the loop runs out of rounds while the agent was still actively
+    # using tools — i.e. it was cut off, not finished. Drives a "Continue" event
+    # so the user can resume instead of the turn silently stalling.
+    _exhausted_rounds = False
+
     for round_num in range(1, max_rounds + 1):
         round_response = ""
         round_reasoning = ""  # reasoning_content deltas (DeepSeek-thinking, vLLM --reasoning-parser)
@@ -2445,6 +2450,17 @@ async def stream_agent_loop(
 
         # Separator in accumulated response
         full_response += "\n\n"
+
+        # Reaching here means this round executed tools and fed results back —
+        # the agent wanted to keep going. If that was the last allowed round,
+        # the loop is about to exit mid-task: flag it so we can offer Continue.
+        if round_num >= max_rounds:
+            _exhausted_rounds = True
+
+    # If the loop hit the round cap while still working, tell the client so it
+    # can show a "Continue" affordance instead of the turn just stopping.
+    if _exhausted_rounds:
+        yield f'data: {json.dumps({"type": "rounds_exhausted", "rounds": max_rounds})}\n\n'
 
     # If the response is completely empty and no tools were executed,
     # yield a fallback message so the user is not left hanging.

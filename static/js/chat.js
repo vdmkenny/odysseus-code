@@ -1824,6 +1824,35 @@ import createResearchSynapse from './researchSynapse.js';
                     }
                   }
                 }
+              } else if (json.type === 'rounds_exhausted') {
+                // The agent hit the per-turn step limit while still working.
+                // Offer a Continue button instead of stalling silently.
+                if (!_isBg && currentHolder && !currentHolder.querySelector('.rounds-exhausted')) {
+                  const note = document.createElement('div');
+                  note.className = 'stopped-indicator rounds-exhausted';
+                  const label = document.createElement('span');
+                  label.textContent = `[Reached the ${json.rounds || ''} step limit — not finished]`;
+                  note.appendChild(label);
+                  const contBtn = document.createElement('button');
+                  contBtn.className = 'continue-btn';
+                  contBtn.title = 'Continue';
+                  contBtn.textContent = '▸';
+                  const _holder = currentHolder;
+                  contBtn.addEventListener('click', () => {
+                    note.remove();
+                    _hideUserBubble = true;
+                    _pendingContinue = _holder;
+                    const msgInput = uiModule.el('message');
+                    if (msgInput) {
+                      msgInput.value = 'You hit the step limit before finishing — the task is not complete. Continue from exactly where you left off and keep going until it is done. Do NOT repeat work already done.';
+                      const sb = document.querySelector('.send-btn');
+                      if (sb) sb.click();
+                    }
+                  });
+                  note.appendChild(contBtn);
+                  const body = currentHolder.querySelector('.body');
+                  if (body) body.appendChild(note);
+                }
               } else if (json.type === 'attachments') {
                 if (_isBg) continue;
                 // Update user bubble — replace file chips with image previews
