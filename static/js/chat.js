@@ -2158,7 +2158,7 @@ import createResearchSynapse from './researchSynapse.js';
                       else if (line.startsWith('+')) cls = 'diff-add';
                       else if (line.startsWith('-')) cls = 'diff-del';
                       return `<span class="${cls}">${esc(line) || '&nbsp;'}</span>`;
-                    }).join('\n');
+                    }).join('');  // spans are display:block — a literal \n here would double-space the diff
                     diffHtml = `<details class="agent-tool-output agent-tool-diff"><summary><span class="diff-file">${esc(d.file || 'diff')}</span> <span class="diff-summary-stats">${stat}</span></summary><pre class="diff-pre">${rows}</pre></details>`;
                   }
                   // For file edits the "command" is the raw JSON args — redundant
