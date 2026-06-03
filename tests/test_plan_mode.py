@@ -79,3 +79,17 @@ def test_fail_closed_fallback_blocks_mutations(monkeypatch):
     assert "write_file" in disabled
     assert "send_email" in disabled
     assert disabled == set(_PLAN_MODE_FALLBACK_BLOCK)
+
+
+def test_active_plan_note_pins_checklist():
+    """The approved-plan note re-grounds execution so a long plan survives
+    history truncation (the agent can always re-read it)."""
+    from src.agent_loop import build_active_plan_note
+    plan = "- [ ] step one\n- [ ] step two"
+    note = build_active_plan_note(plan)
+    assert "ACTIVE PLAN" in note
+    assert plan in note               # the actual checklist is embedded
+    assert "IN ORDER" in note         # execution guidance present
+    # Empty input → no note (so we never inject a blank pin).
+    assert build_active_plan_note("") == ""
+    assert build_active_plan_note("   ") == ""

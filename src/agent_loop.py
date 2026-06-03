@@ -336,6 +336,7 @@ If the user asks for a reminder/alarm before the event, pass `reminder_minutes` 
     "pipeline": "- ```pipeline``` — Run a multi-step AI pipeline. Args (JSON) with ordered steps, each specifying a model and prompt. Use for complex workflows.",
     "ui_control": "- ```ui_control``` — Control the UI: toggle tools on/off, OPEN PANELS, open email reply drafts, switch models, change themes. Commands: `toggle <name> on/off` (names: bash/shell, web/search, research, incognito, document_editor/documents), `open_panel <name>` (panels: documents, gallery, email, sessions, notes, memories/brain, skills, settings, cookbook), `open_email_reply <uid> <folder> <reply|reply-all|ai-reply>` (opens an email compose document, does NOT send), `set_mode agent/chat`, `switch_model <name>`, `set_theme <preset>`, `create_theme <name> <bg> <fg> <panel> <border> <accent>` (optional key=val for advanced colors AND background effects: bgPattern=<none|dots|synapse|rain|constellations|perlin-flow|petals|sparkles|embers>, bgEffectColor=#RRGGBB, bgEffectIntensity=<num>, bgEffectSize=<num>, frosted=true|false). \"open documents\" / \"open library\" / \"show gallery\" / \"open inbox\" / \"open notes\" / \"open cookbook\" all map to `open_panel <name>`. Theme presets: dark, light, midnight, paper, cyberpunk, retrowave, forest, ocean, ume, copper, terminal, organs, lavender, gpt, claude, cute.",
     "ask_user": "- ```ask_user``` — Ask the user a multiple-choice question when the task is genuinely ambiguous and the answer changes what you do next (pick an approach, confirm an assumption, choose a target). Args (JSON): {\"question\": \"...\", \"options\": [{\"label\": \"...\", \"description\": \"...\"?}, ...], \"multi\": false?}. 2-6 options. The user gets clickable buttons; calling this ENDS your turn and their choice comes back as your next message. Prefer sensible defaults — only ask when you truly can't proceed well without their input.",
+    "update_plan": "- ```update_plan``` — While executing an approved plan, write the plan back: tick steps done or revise them. Args (JSON): {\"plan\": \"- [x] done step\\n- [ ] next step\"}. Always pass the COMPLETE checklist, not a diff. Call it after finishing each step (mark it `- [x]`) and whenever the user asks to change the plan. The user's docked plan window updates live. Does nothing if there's no active plan.",
     "list_served_models": "- ```list_served_models``` — Show what the Cookbook (LLM-serving subsystem) is currently running. NO args. Use this for ANY 'what's running' / 'what's serving' / 'show my cookbook' / 'is anything up' query. DO NOT shell out (`ps aux`, `docker ps`, etc.) — this tool is the source of truth. Failed serve tasks include recent logs plus diagnosis/retry suggestions; use those suggestions to call `serve_model` again with an adjusted command when appropriate.",
     "stop_served_model": "- ```stop_served_model``` — Stop a running model server. Args (JSON): {\"session_id\": \"<from list_served_models>\"}. Use for 'kill my cookbook' / 'stop the model' / 'shut down vLLM'.",
     "download_model": "- ```download_model``` — Download a HuggingFace model. Args (JSON): {\"repo_id\": \"Qwen/Qwen3-8B\", \"host\": \"user@gpu-box\"?, \"include\": \"*Q4_K_M*\"?}.",
@@ -1400,6 +1401,31 @@ PLAN_MODE_DIRECTIVE = (
 )
 
 
+def build_active_plan_note(approved_plan: str) -> str:
+    """System note that pins an approved plan during execution.
+
+    Sent back by the frontend each turn so a long plan on a weak model survives
+    history truncation — the agent can always re-read it. Returns "" for empty
+    input.
+    """
+    if not approved_plan or not approved_plan.strip():
+        return ""
+    return (
+        "## ACTIVE PLAN (approved — execute this)\n"
+        "You are executing a plan the user already approved. THE FULL PLAN IS "
+        "BELOW — it is always provided here every turn. Do NOT say you lost it, "
+        "and do NOT look for it in tasks, notes, memory, files, or the API; just "
+        "read it below. Work through it IN ORDER. After finishing each step, call "
+        "the `update_plan` tool with the full checklist and that step marked "
+        "`- [x]` so progress stays visible in the user's plan window. If the user "
+        "asks to change the plan, call `update_plan` with the revised checklist. "
+        "Do the next unchecked item until all are done. Do not skip, reorder, or "
+        "invent steps; if a step is genuinely impossible, say so and stop.\n\n"
+        "Current plan:\n"
+        + approved_plan.strip()
+    )
+
+
 async def stream_agent_loop(
     endpoint_url: str,
     model: str,
@@ -1419,6 +1445,7 @@ async def stream_agent_loop(
     fallbacks: Optional[List[tuple]] = None,
     workspace: Optional[str] = None,
     plan_mode: bool = False,
+    approved_plan: Optional[str] = None,
     _is_teacher_run: bool = False,
 ) -> AsyncGenerator[str, None]:
     """Streaming agent loop generator.
@@ -1630,6 +1657,17 @@ async def stream_agent_loop(
             messages[0]["content"] = PLAN_MODE_DIRECTIVE + "\n\n" + (messages[0].get("content") or "")
         else:
             messages.insert(0, {"role": "system", "content": PLAN_MODE_DIRECTIVE})
+    elif approved_plan and approved_plan.strip():
+        # EXECUTING an approved plan. Pin the checklist as a top-of-context
+        # system note so a long plan on a weak model survives history
+        # truncation — the agent can always re-read the plan instead of losing
+        # the thread. (The first system message is kept by the context trimmer.)
+        _plan_note = build_active_plan_note(approved_plan)
+        if messages and messages[0].get("role") == "system":
+            messages[0]["content"] = _plan_note + "\n\n" + (messages[0].get("content") or "")
+        else:
+            messages.insert(0, {"role": "system", "content": _plan_note})
+        logger.info("[plan] pinned approved plan (%d chars) for execution turn", len(approved_plan))
     prep_timings["prompt_build"] = time.time() - _t2
 
     _t3 = time.time()
@@ -2277,6 +2315,13 @@ async def stream_agent_loop(
                     f'data: {json.dumps({"type": "ask_user", "data": result["ask_user"]})}\n\n'
                 )
                 _awaiting_user = True
+            # update_plan: agent wrote back to the plan (ticked a step / revised).
+            # Push it to the frontend so the stored plan + docked window update
+            # live. Does NOT end the turn — the agent keeps working.
+            if "plan_update" in result:
+                yield (
+                    f'data: {json.dumps({"type": "plan_update", "data": result["plan_update"]})}\n\n'
+                )
 
             # Build output for frontend tool bubble.
             # Document tools get a short summary — content goes to the editor panel.
