@@ -36009,3 +36009,14 @@ body.theme-frosted .modal {
   line-height: 1.4;
   color: color-mix(in srgb, var(--fg) 45%, transparent);
 }
+
+/* Git branch indicator — read-only chip beside the workspace pill. Mirrors the
+   tool-indicator look but is informational (no click/clear). */
+.git-branch-indicator {
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.75;
+}
+.git-branch-indicator:hover { opacity: 1; background: none; }
+.git-branch-indicator svg { flex-shrink: 0; }
