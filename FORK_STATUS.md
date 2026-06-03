@@ -6,7 +6,7 @@ depend on each other. Upstream = `pewdiepie-archdaemon/odysseus`.
 This `main` branch is the fork's running build: latest upstream `main` + all the
 open-PR branches + fork-only items, combined.
 
-_Last updated: 2026-06-03 (added `ask_user` tool)._
+_Last updated: 2026-06-03 (ask_user → PR #2111, issue #2110)._
 
 ## Legend
 - **Open PR** — proposed upstream, awaiting review/merge.
@@ -27,6 +27,7 @@ _Last updated: 2026-06-03 (added `ask_user` tool)._
 | CI workflow (syntax + tests) | `ci-checks` | [#1966](https://github.com/pewdiepie-archdaemon/odysseus/pull/1966) | Open (re-filed) | issue [#1965](https://github.com/pewdiepie-archdaemon/odysseus/issues/1965) | Re-opened after #1015 was closed for being tooling-without-an-issue; #1965 is the issue-first discussion. `.github/workflows/ci.yml`. |
 | Code-navigation tools (grep, glob, ls) + read_file line ranges | `code-nav-tools` | [#1670](https://github.com/pewdiepie-archdaemon/odysseus/pull/1670) | Open, mergeable | issue [#2025](https://github.com/pewdiepie-archdaemon/odysseus/issues/2025) | Standalone version (confined to the `_resolve_tool_path` allowlist, no workspace dep). ripgrep-backed grep with Python fallback. |
 | Round-limit handling — Continue at cap + configurable cap | `feat/continue-on-round-limit` | [#1999](https://github.com/pewdiepie-archdaemon/odysseus/pull/1999) | Open | issue [#1997](https://github.com/pewdiepie-archdaemon/odysseus/issues/1997) | `rounds_exhausted` event → Continue pill (bottom, repeatable); admin "Max steps per message" setting (validated 1..200). |
+| `ask_user` — agent-posed multiple-choice questions | `feat/ask-user` | [#2111](https://github.com/pewdiepie-archdaemon/odysseus/pull/2111) | Open | issue [#2110](https://github.com/pewdiepie-archdaemon/odysseus/issues/2110) | `ask_user` tool → `ask_user` SSE event, ends the turn; card with option buttons + free-text Other + dismiss ×, removed once answered. Question streamed as assistant text so it persists/replays (prevents re-ask loop). Independent (clean off upstream `main`). **Screenshots still to be dragged into the PR.** |
 
 All rebased on fresh upstream `main` and use the upstream PR template.
 
@@ -44,7 +45,6 @@ All rebased on fresh upstream `main` and use the upstream PR template.
 | Code-navigation tools — workspace-aware variant | `feat/code-nav-tools` | yes | `workspace-confine` (#1103) path helper, `plan-mode` (#638) read-only set | Workspace-confined + plan-mode-readonly superset of #1670. Runs in the fork build; folds into #1670 once #1103 + #638 land. |
 | Git branch indicator (workspace / data dir) | `feat/git-branch-indicator` | yes | `workspace-confine` (#1103) for the workspace readout | Shows the checked-out branch of the active workspace (else the data dir, only when the dir itself is a repo top level — doesn't climb to a parent repo); reloads on each LLM message. Silent no-op when git is unavailable. Ready to PR. |
 | AGENTS.md / CLAUDE.md project instructions | `feat/agents-md` | yes | `workspace-confine` (#1103) workspace note block | Reads repo-authored instructions (AGENTS.md → CLAUDE.md, workspace root only, 32 KB cap) and prepends them to the system prompt. Mirrors opencode / Claude Code. Ready to PR (folds in with #1103). |
-| `ask_user` — agent-posed multiple-choice questions | `feat/ask-user` | yes | none (independent; clean off upstream `main`) | New `ask_user` tool: the agent pauses and asks the user a multiple-choice question (2-6 options, optional multi-select) when a task is genuinely ambiguous. Mirrors the `ui_control` marker pattern — emits an `ask_user` SSE event and ends the turn; the frontend renders clickable option buttons and the user's choice becomes the next message. Always-available, not admin-gated. **Ready to PR** (independent of all other branches); needs a screenshot of the option card per CONTRIBUTING (touches `static/`). |
 | Git + forge (gh/glab) agent tools | `feat/git-tools` | yes | `workspace-confine` (#1103) + `code-nav` (#1670); issue [#2053](https://github.com/pewdiepie-archdaemon/odysseus/issues/2053) | `git` (allowlisted subcommands incl. push, agent commit identity) + `forge` (auto-detects gh/glab, `pr`↔`mr` bridge) + `/git` slash + workspace git-context in the prompt. Admin-gated, workspace-required, excluded from plan mode, all binaries `shutil.which`-resolved (Windows-safe). **PR blocked**: its diff interleaves with #1103 (workspace param) and #1670 (tool registration) — open it once both land, then rebase clean onto upstream. |
 
 ## Project notes
