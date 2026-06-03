@@ -6,7 +6,7 @@ depend on each other. Upstream = `pewdiepie-archdaemon/odysseus`.
 This `main` branch is the fork's running build: latest upstream `main` + all the
 open-PR branches + fork-only items, combined.
 
-_Last updated: 2026-06-03 (plan-mode persistence + write-back folded into #638)._
+_Last updated: 2026-06-03 (provider line in model-info card)._
 
 ## Legend
 - **Open PR** — proposed upstream, awaiting review/merge.
@@ -43,6 +43,7 @@ All rebased on fresh upstream `main` and use the upstream PR template.
 | Feature | Branch | In main build | Depends on (for clean upstream) | Notes |
 |---|---|---|---|---|
 | Code-navigation tools — workspace-aware variant | `feat/code-nav-tools` | yes | `workspace-confine` (#1103) path helper, `plan-mode` (#638) read-only set | Workspace-confined + plan-mode-readonly superset of #1670. Runs in the fork build; folds into #1670 once #1103 + #638 land. |
+| Provider line in the model-info card | `feat/provider-label` | yes | none (clean off upstream `main`) | Model-info popup gains a **Provider** line from the session endpoint host (GitHub Copilot / OpenRouter / Anthropic / Local / …), distinguishing the same model name served by different routes. `providerLabel()` in `providers.js`. **Ready to PR** (independent); needs a screenshot per CONTRIBUTING (touches `static/`). |
 | Git branch indicator (workspace / data dir) | `feat/git-branch-indicator` | yes | `workspace-confine` (#1103) for the workspace readout | Shows the checked-out branch of the active workspace (else the data dir, only when the dir itself is a repo top level — doesn't climb to a parent repo); reloads on each LLM message. Silent no-op when git is unavailable. Ready to PR. |
 | AGENTS.md / CLAUDE.md project instructions | `feat/agents-md` | yes | `workspace-confine` (#1103) workspace note block | Reads repo-authored instructions (AGENTS.md → CLAUDE.md, workspace root only, 32 KB cap) and prepends them to the system prompt. Mirrors opencode / Claude Code. Ready to PR (folds in with #1103). |
 | Git + forge (gh/glab) agent tools | `feat/git-tools` | yes | `workspace-confine` (#1103) + `code-nav` (#1670); issue [#2053](https://github.com/pewdiepie-archdaemon/odysseus/issues/2053) | `git` (allowlisted subcommands incl. push, agent commit identity) + `forge` (auto-detects gh/glab, `pr`↔`mr` bridge) + `/git` slash + workspace git-context in the prompt. Admin-gated, workspace-required, excluded from plan mode, all binaries `shutil.which`-resolved (Windows-safe). **PR blocked**: its diff interleaves with #1103 (workspace param) and #1670 (tool registration) — open it once both land, then rebase clean onto upstream. |
