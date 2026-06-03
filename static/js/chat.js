@@ -1827,11 +1827,15 @@ import createResearchSynapse from './researchSynapse.js';
               } else if (json.type === 'rounds_exhausted') {
                 // The agent hit the per-turn step limit while still working.
                 // Offer a Continue button instead of stalling silently.
-                if (!_isBg && currentHolder && !currentHolder.querySelector('.rounds-exhausted')) {
+                // NOTE: append to the chat-history container (bottom), NOT the
+                // message body — the body innerHTML is re-rendered at stream
+                // finalize, which would wipe a note placed inside it.
+                const _chatBox = document.getElementById('chat-history');
+                if (!_isBg && _chatBox && !_chatBox.querySelector('.rounds-exhausted')) {
                   const note = document.createElement('div');
                   note.className = 'stopped-indicator rounds-exhausted';
                   const label = document.createElement('span');
-                  label.textContent = `[Reached the ${json.rounds || ''} step limit — not finished]`;
+                  label.textContent = `[Reached the ${json.rounds || ''}-step limit — not finished]`;
                   note.appendChild(label);
                   const contBtn = document.createElement('button');
                   contBtn.className = 'continue-btn';
@@ -1850,8 +1854,8 @@ import createResearchSynapse from './researchSynapse.js';
                     }
                   });
                   note.appendChild(contBtn);
-                  const body = currentHolder.querySelector('.body');
-                  if (body) body.appendChild(note);
+                  _chatBox.appendChild(note);
+                  try { note.scrollIntoView({ block: 'end', behavior: 'smooth' }); } catch (_) { uiModule.scrollHistory && uiModule.scrollHistory(); }
                 }
               } else if (json.type === 'attachments') {
                 if (_isBg) continue;
