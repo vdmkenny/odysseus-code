@@ -24,6 +24,7 @@ _Last updated: 2026-06-03._
 | edit_file tool + file-change diffs | `file-write-diff` | [#1239](https://github.com/pewdiepie-archdaemon/odysseus/pull/1239) | Open, mergeable | none | Exact-string disk edit + unified diff; `write_file` shows diff too. |
 | Workspace: confine agent tools to a folder | `workspace-confine` | [#1103](https://github.com/pewdiepie-archdaemon/odysseus/pull/1103) | Open, mergeable | none | Hard path confinement for file tools; bash/python `cwd`. Pairs with plan mode. |
 | Plan mode for the chat agent | `plan-mode` | [#638](https://github.com/pewdiepie-archdaemon/odysseus/pull/638) | Open, mergeable | none | Read-only investigate → checklist → approve → execute. |
+| CI workflow (syntax + tests) | `ci-checks` | [#1966](https://github.com/pewdiepie-archdaemon/odysseus/pull/1966) | Open (re-filed) | issue [#1965](https://github.com/pewdiepie-archdaemon/odysseus/issues/1965) | Re-opened after #1015 was closed for being tooling-without-an-issue; #1965 is the issue-first discussion. `.github/workflows/ci.yml`. |
 | Code-navigation tools (grep, glob, ls) + read_file line ranges | `code-nav-tools` | [#1670](https://github.com/pewdiepie-archdaemon/odysseus/pull/1670) | Open, mergeable | none | Standalone version (confined to the `_resolve_tool_path` allowlist, no workspace dep). ripgrep-backed grep with Python fallback. |
 
 All rebased on fresh upstream `main` and use the upstream PR template.
@@ -81,7 +82,7 @@ Lower priority: per-action approval prompts, LSP/diagnostics loop.
 |---|---|---|
 | edit_file (first attempt) | [#1171](https://github.com/pewdiepie-archdaemon/odysseus/pull/1171) | Superseded by the focused #1239. |
 | Favorite models in the picker | [#597](https://github.com/pewdiepie-archdaemon/odysseus/pull/597) | Another PR implemented something similar; excluded. |
-| CI workflow (syntax + tests) | [#1015](https://github.com/pewdiepie-archdaemon/odysseus/pull/1015) | Maintainer: CI/tooling is issue-first per CONTRIBUTING, not crowdsourced. Lives fork-only (`ci-checks`). |
+| CI workflow — first attempt | [#1015](https://github.com/pewdiepie-archdaemon/odysseus/pull/1015) | Closed for being tooling-without-an-issue. Re-filed as #1966 with issue #1965. |
 | Text-only emoji streaming fix | [#1692](https://github.com/pewdiepie-archdaemon/odysseus/pull/1692) | Maintainer read it as emoji-rendering (it's a strip-mode bugfix); needs reframe + visual clip. Dropped from build; branch `fix/text-emoji-streaming` parked. |
 
 > **Maintainer is automated + strict on CONTRIBUTING.** Tooling/CI and visual/UI
@@ -100,6 +101,7 @@ Open PRs — all independent, merge in any order:
   workspace-confine (#1103)
   plan-mode (#638)
   code-nav-tools (#1670)   ← standalone (allowlist-confined)
+  ci-checks (#1966)        ← re-filed; issue #1965
 
 Fork-only deltas (need workspace #1103 [+ plan #638] for a clean upstream PR):
   feat/code-nav-tools (workspace-aware) ──needs──► workspace-confine (#1103) + plan-mode (#638)
