@@ -1,10 +1,20 @@
-# Odysseus
+# Odysseus Code
 
 ```
 ───────────────────────────────────────────────
  ⊹ ࣪ ˖ ૮( ˶ᵔ ᵕ ᵔ˶ )っ  Odysseus vers. 1.0
 ───────────────────────────────────────────────
 ```
+
+> **Odysseus Code** — a fork of [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus)
+> focused on bringing **Claude Code / opencode-style agent features** to it:
+> plan mode, workspace confinement, on-disk edits with diffs, code-navigation
+> tools (grep/glob/ls), GitHub Copilot as a provider, AGENTS.md/CLAUDE.md
+> project instructions, and more.
+>
+> This fork **follows upstream** and **attempts to upstream every change** —
+> each feature is developed as a focused, upstream-targeted PR. For the live
+> list of features, their PRs, and dependencies, see **[FORK_STATUS.md](FORK_STATUS.md)**.
 
 ![Odysseus](docs/odysseus.jpg)
 
