@@ -25,14 +25,22 @@ _Last updated: 2026-06-03._
 | Workspace: confine agent tools to a folder | `workspace-confine` | [#1103](https://github.com/pewdiepie-archdaemon/odysseus/pull/1103) | Open, mergeable | none | Hard path confinement for file tools; bash/python `cwd`. Pairs with plan mode. |
 | CI workflow (syntax + tests) | `ci-checks` | [#1015](https://github.com/pewdiepie-archdaemon/odysseus/pull/1015) | Open, **approved** | none | `.github/workflows/ci.yml`; py compile + node check + pytest. |
 | Plan mode for the chat agent | `plan-mode` | [#638](https://github.com/pewdiepie-archdaemon/odysseus/pull/638) | Open, mergeable | none | Read-only investigate → checklist → approve → execute. |
+| Code-navigation tools (grep, glob, ls) + read_file line ranges | `code-nav-tools` | [#1670](https://github.com/pewdiepie-archdaemon/odysseus/pull/1670) | Open, mergeable | none | Standalone version (confined to the `_resolve_tool_path` allowlist, no workspace dep). ripgrep-backed grep with Python fallback. |
 
-All five rebased on fresh upstream `main` and use the upstream PR template.
+All rebased on fresh upstream `main` and use the upstream PR template.
+
+> **Two code-nav variants.** The PR (`code-nav-tools`, #1670) is standalone —
+> confined to the data/tmp allowlist, no workspace/plan dependency. The fork's
+> running build instead carries the **workspace-aware** variant
+> (`feat/code-nav-tools`): same tools, but confined to the active workspace and
+> allowed in plan mode. Once #1670 lands upstream, the fork keeps the
+> workspace-aware delta as a small follow-up.
 
 ## Fork-only (not yet upstreamed)
 
 | Feature | Branch | In main build | Depends on (for clean upstream) | Notes |
 |---|---|---|---|---|
-| Code-navigation tools: `grep`, `glob`, `ls` + `read_file` line ranges | `feat/code-nav-tools` | yes | `workspace-confine` (#1103) path helper, `plan-mode` (#638) read-only set | ripgrep-backed grep with Python fallback; all confined by the read_file path policy. Ready to open as a PR; applies cleanly once #1103 + #638 land, trivial 2-line adapt otherwise. |
+| Code-navigation tools — workspace-aware variant | `feat/code-nav-tools` | yes | `workspace-confine` (#1103) path helper, `plan-mode` (#638) read-only set | Workspace-confined + plan-mode-readonly superset of #1670. Runs in the fork build; folds into #1670 once #1103 + #638 land. |
 | Git branch indicator (workspace / data dir) | `feat/git-branch-indicator` | no (WIP) | `workspace-confine` (#1103) for the workspace readout | **WIP / parked.** Shows the checked-out branch of the active workspace (else data dir); reloads on each LLM message. Silent no-op when git is unavailable. |
 | Continue on round limit | (in `main`) | yes | none | "Continue" affordance when the agent hits `MAX_AGENT_ROUNDS`. Not yet split into its own branch/PR. |
 
@@ -56,18 +64,21 @@ All five rebased on fresh upstream `main` and use the upstream PR template.
 ## Dependency graph (upstreaming order)
 
 ```
-plan-mode (#638) ─────────────┐
-                              ├──► code-nav-tools (feat/code-nav-tools)
-workspace-confine (#1103) ────┤
-                              └──► git-branch-indicator (feat/git-branch-indicator, WIP)
+Open PRs — all independent, merge in any order:
+  github-copilot (#1480)
+  edit_file (#1239)
+  workspace-confine (#1103)
+  ci-checks (#1015)
+  plan-mode (#638)
+  code-nav-tools (#1670)   ← standalone (allowlist-confined)
 
-github-copilot (#1480)   ── independent
-edit_file (#1239)        ── independent
-ci-checks (#1015)        ── independent
+Fork-only deltas:
+  feat/code-nav-tools (workspace-aware) ──needs──► workspace-confine (#1103) + plan-mode (#638)
+  git-branch-indicator (WIP)            ──needs──► workspace-confine (#1103)
 ```
 
-- The five open PRs are mutually independent and can merge in any order.
-- `code-nav-tools` and `git-branch-indicator` reuse the workspace path helper
-  (#1103); `code-nav-tools` also reuses the plan-mode read-only set (#638).
-  They are functional on the fork today regardless; the dependency only matters
-  for a clean upstream cherry-pick.
+- All six open PRs are mutually independent and can merge in any order.
+- The fork-only **workspace-aware** code-nav variant and **git-branch-indicator**
+  reuse the workspace path helper (#1103); the workspace-aware code-nav also
+  reuses the plan-mode read-only set (#638). Functional on the fork today
+  regardless — the dependency only matters for a clean upstream cherry-pick.
