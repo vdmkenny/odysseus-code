@@ -44,6 +44,29 @@ All rebased on fresh upstream `main` and use the upstream PR template.
 | Git branch indicator (workspace / data dir) | `feat/git-branch-indicator` | no (WIP) | `workspace-confine` (#1103) for the workspace readout | **WIP / parked.** Shows the checked-out branch of the active workspace (else data dir); reloads on each LLM message. Silent no-op when git is unavailable. |
 | Continue on round limit | (in `main`) | yes | none | "Continue" affordance when the agent hits `MAX_AGENT_ROUNDS`. Not yet split into its own branch/PR. |
 
+## Project notes
+
+- **No JS unit-test runner.** The repo has no `package.json` / jest / vitest /
+  playwright. CI (`#1015`) runs `python -m py_compile`, `node --check`, and
+  `pytest`. `tests/bombadil-spec.ts` is an external Antithesis harness, not unit
+  tests. So JS-only changes are covered by `node --check` + manual/browser
+  verification; Python logic gets `pytest` tests.
+
+## Candidate next features (from the Claude Code / opencode gap analysis)
+
+Ranked by leverage × effort. (Biggest gap — first-class code navigation — is
+done: #1670.)
+
+1. **`AGENTS.md` auto-load** — read a repo/workspace instructions file and
+   prepend to the agent system prompt (what `CLAUDE.md` / `AGENTS.md` do
+   upstream of us). Cheap, high value. Pairs with workspace (#1103).
+2. **Edit checkpoint / undo** — snapshot files before `edit_file`/`write_file`
+   per turn; expose "revert last agent change". Safety.
+3. **Parallel tool execution** — independent tool calls run sequentially today;
+   `asyncio.gather` the read-only ones. Latency.
+
+Lower priority: per-action approval prompts, LSP/diagnostics loop.
+
 ## Merged upstream
 
 | Feature | PR |
