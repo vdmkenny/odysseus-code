@@ -14,6 +14,7 @@ import compareModule from './js/compare/index.js';
 import documentModule from './js/document.js';
 import searchChatModule from './js/search-chat.js';
 import markdownModule from './js/markdown.js';
+import { emojiToText } from './js/emojiText.js';
 import chatRenderer from './js/chatRenderer.js';
 import sessionModule from './js/sessions.js';
 import memoryModule from './js/memory.js';
@@ -2495,117 +2496,10 @@ function initializeEventListeners() {
   syncRearrangeChecks();
 
   // ── Text-only emoji conversion ──
-  // Regex matching most emoji codepoints (Emoji_Presentation + common sequences)
-  const EMOJI_RE = /(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})(?:\uFE0F|\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}))*/gu;
-
-  // Common emoji → text description map
-  const EMOJI_MAP = {
-    '😀':'grinning','😃':'smiley','😄':'smile','😁':'grin','😆':'laughing','😅':'sweat smile',
-    '🤣':'rofl','😂':'joy','🙂':'slightly smiling','🙃':'upside down','😉':'wink',
-    '😊':'blush','😇':'innocent','🥰':'smiling hearts','😍':'heart eyes','🤩':'star struck',
-    '😘':'kissing heart','😗':'kissing','😚':'kissing closed eyes','😙':'kissing smiling eyes',
-    '🥲':'smiling tear','😋':'yum','😛':'tongue','😜':'winking tongue','🤪':'zany',
-    '😝':'squinting tongue','🤑':'money mouth','🤗':'hugging','🤭':'hand over mouth',
-    '🤫':'shushing','🤔':'thinking','🫡':'saluting','🤐':'zipper mouth','🤨':'raised eyebrow',
-    '😐':'neutral','😑':'expressionless','😶':'no mouth','🫥':'dotted line face',
-    '😏':'smirk','😒':'unamused','🙄':'eye roll','😬':'grimacing','🤥':'lying',
-    '😌':'relieved','😔':'pensive','😪':'sleepy','🤤':'drooling','😴':'sleeping',
-    '😷':'mask','🤒':'thermometer','🤕':'head bandage','🤢':'nauseated','🤮':'vomiting',
-    '🥵':'hot','🥶':'cold','🥴':'woozy','😵':'dizzy','🤯':'exploding head',
-    '🤠':'cowboy','🥳':'party','🥸':'disguised','😎':'sunglasses','🤓':'nerd',
-    '🧐':'monocle','😕':'confused','🫤':'diagonal mouth','😟':'worried','🙁':'slightly frowning',
-    '😮':'open mouth','😯':'hushed','😲':'astonished','😳':'flushed','🥺':'pleading',
-    '🥹':'holding back tears','😦':'frowning open mouth','😧':'anguished','😨':'fearful',
-    '😰':'anxious sweat','😥':'sad relieved','😢':'crying','😭':'sobbing','😱':'screaming',
-    '😖':'confounded','😣':'persevering','😞':'disappointed','😓':'downcast sweat',
-    '😩':'weary','😫':'tired','🥱':'yawning','😤':'triumph','😡':'pouting',
-    '😠':'angry','🤬':'swearing','😈':'smiling devil','👿':'angry devil',
-    '💀':'skull','☠️':'skull crossbones','💩':'poop','🤡':'clown','👹':'ogre','👺':'goblin',
-    '👻':'ghost','👽':'alien','👾':'space invader','🤖':'robot',
-    '😺':'smiling cat','😸':'grinning cat','😹':'tears of joy cat','😻':'heart eyes cat',
-    '😼':'wry cat','😽':'kissing cat','🙀':'weary cat','😿':'crying cat','😾':'pouting cat',
-    '🙈':'see no evil','🙉':'hear no evil','🙊':'speak no evil',
-    '👋':'wave','🤚':'raised back of hand','🖐️':'hand with fingers splayed','✋':'raised hand',
-    '🖖':'vulcan salute','🫱':'rightward hand','🫲':'leftward hand',
-    '👌':'ok hand','🤌':'pinched fingers','🤏':'pinching hand','✌️':'victory',
-    '🤞':'crossed fingers','🫰':'hand with index finger and thumb crossed',
-    '🤟':'love you','🤘':'rock on','🤙':'call me','👈':'point left','👉':'point right',
-    '👆':'point up','🖕':'middle finger','👇':'point down','☝️':'index up',
-    '🫵':'point at viewer','👍':'thumbs up','👎':'thumbs down','✊':'raised fist',
-    '👊':'fist bump','🤛':'left fist','🤜':'right fist','👏':'clap','🙌':'raising hands',
-    '🫶':'heart hands','👐':'open hands','🤲':'palms up','🤝':'handshake','🙏':'pray',
-    '✍️':'writing','💅':'nail polish','🤳':'selfie','💪':'flexed biceps',
-    '❤️':'red heart','🧡':'orange heart','💛':'yellow heart','💚':'green heart',
-    '💙':'blue heart','💜':'purple heart','🖤':'black heart','🤍':'white heart',
-    '🩷':'pink heart','🩵':'light blue heart','🩶':'grey heart','🤎':'brown heart',
-    '💔':'broken heart','❤️‍🔥':'heart on fire','❤️‍🩹':'mending heart',
-    '💕':'two hearts','💞':'revolving hearts','💓':'heartbeat','💗':'growing heart',
-    '💖':'sparkling heart','💘':'heart with arrow','💝':'heart with ribbon',
-    '💟':'heart decoration','🔥':'fire','💯':'100','✨':'sparkles','⭐':'star',
-    '🌟':'glowing star','💫':'dizzy star','🎉':'party popper','🎊':'confetti ball',
-    '🎈':'balloon','🎁':'gift','🏆':'trophy','🥇':'1st place','🥈':'2nd place','🥉':'3rd place',
-    '⚡':'zap','💡':'light bulb','🔑':'key','🔒':'locked','🔓':'unlocked',
-    '🔔':'bell','🔕':'bell off','📢':'loudspeaker','📣':'megaphone',
-    '💬':'speech bubble','💭':'thought bubble','🗯️':'anger bubble',
-    '✅':'check mark','❌':'cross mark','❓':'question','❗':'exclamation',
-    '⚠️':'warning','🚫':'prohibited','⛔':'no entry','🔴':'red circle','🟢':'green circle',
-    '🔵':'blue circle','🟡':'yellow circle','⚪':'white circle','⚫':'black circle',
-    '🟠':'orange circle','🟣':'purple circle','🟤':'brown circle',
-    '📁':'folder','📂':'open folder','📄':'document','📝':'memo','📎':'paperclip',
-    '📌':'pin','📍':'round pin','🔗':'link','📊':'bar chart','📈':'chart up','📉':'chart down',
-    '🔍':'magnifying glass left','🔎':'magnifying glass right',
-    '🌐':'globe','🌍':'globe europe','🌎':'globe americas','🌏':'globe asia',
-    '🕐':'clock 1','🕑':'clock 2','🕒':'clock 3','🕓':'clock 4',
-    '⏰':'alarm clock','⏳':'hourglass flowing','⌛':'hourglass done',
-    '🚀':'rocket','✈️':'airplane','🚗':'car','🚂':'train','🚢':'ship',
-    '🏠':'house','🏢':'building','🏗️':'construction','🏭':'factory',
-    '🎵':'musical note','🎶':'musical notes','🎤':'microphone','🎧':'headphones',
-    '📷':'camera','📸':'camera flash','🎬':'clapperboard','📺':'television',
-    '💻':'laptop','🖥️':'desktop','📱':'mobile phone','☎️':'telephone',
-    '🔧':'wrench','🔨':'hammer','⚙️':'gear','🧲':'magnet','🧪':'test tube','🔬':'microscope',
-    '📚':'books','📖':'open book','✏️':'pencil','🖊️':'pen','🖋️':'fountain pen',
-    '🎯':'bullseye','♟️':'chess pawn','🎲':'game die','🧩':'puzzle piece',
-    '🍕':'pizza','🍔':'burger','🍟':'fries','🌮':'taco','🍣':'sushi','🍩':'donut',
-    '☕':'coffee','🍺':'beer','🍷':'wine','🥤':'cup with straw',
-    '🐶':'dog','🐱':'cat','🐭':'mouse','🐹':'hamster','🐰':'rabbit','🦊':'fox',
-    '🐻':'bear','🐼':'panda','🐨':'koala','🐯':'tiger','🦁':'lion','🐮':'cow',
-    '🐷':'pig','🐸':'frog','🐵':'monkey','🐔':'chicken','🐧':'penguin','🐦':'bird',
-    '🦅':'eagle','🦆':'duck','🦉':'owl','🐺':'wolf','🐗':'boar','🐴':'horse',
-    '🦄':'unicorn','🐝':'bee','🐛':'bug','🦋':'butterfly','🐌':'snail','🐞':'ladybug',
-    '🐍':'snake','🐢':'turtle','🐙':'octopus','🦀':'crab','🐠':'tropical fish',
-    '🐳':'whale','🐋':'whale','🦈':'shark','🐊':'crocodile','🦕':'sauropod','🦖':'t-rex',
-    '🌸':'cherry blossom','🌹':'rose','🌻':'sunflower','🌺':'hibiscus','🌷':'tulip',
-    '🌱':'seedling','🌲':'evergreen tree','🌳':'deciduous tree','🍀':'four leaf clover',
-    '🍎':'red apple','🍐':'pear','🍊':'tangerine','🍋':'lemon','🍌':'banana',
-    '🍉':'watermelon','🍇':'grapes','🍓':'strawberry','🫐':'blueberries','🍑':'peach',
-    '🌈':'rainbow','☀️':'sun','🌤️':'sun behind cloud','⛅':'sun behind cloud','☁️':'cloud',
-    '🌧️':'rain','⛈️':'thunder','❄️':'snowflake','🌊':'wave',
-    '👀':'eyes','👁️':'eye','👂':'ear','👃':'nose','👄':'mouth','👅':'tongue',
-    '🧠':'brain','🦴':'bone','🦷':'tooth','👶':'baby','🧒':'child','👦':'boy','👧':'girl',
-    '🧑':'person','👨':'man','👩':'woman','🧓':'older person',
-    '👮':'police officer','🧑‍💻':'technologist','👨‍💻':'man technologist',
-    '👩‍💻':'woman technologist',
-    '🎓':'graduation cap','🧢':'billed cap','👑':'crown','💎':'gem','👓':'glasses','🕶️':'sunglasses',
-    '🩸':'drop of blood','💊':'pill','🩹':'bandage','🧬':'dna','🦠':'microbe',
-    '☢️':'radioactive','☣️':'biohazard','♻️':'recycling',
-    '🏳️':'white flag','🏴':'black flag','🚩':'red flag','🏁':'checkered flag',
-    '➡️':'right arrow','⬅️':'left arrow','⬆️':'up arrow','⬇️':'down arrow',
-    '↗️':'upper right arrow','↘️':'lower right arrow','↙️':'lower left arrow','↖️':'upper left arrow',
-    '↩️':'left curve','↪️':'right curve','🔄':'counterclockwise','🔃':'clockwise',
-    '➕':'plus','➖':'minus','➗':'division','✖️':'multiply','♾️':'infinity',
-    '‼️':'double exclamation','⁉️':'exclamation question',
-    '©️':'copyright','®️':'registered','™️':'trademark',
-  };
-
-  function emojiToText(str) {
-    return str.replace(EMOJI_RE, (match) => {
-      const desc = EMOJI_MAP[match];
-      if (desc) return ':' + desc + ':';
-      // Fallback: use the emoji's Unicode name if available, or skip
-      return ':emoji:';
-    });
-  }
-
+  // EMOJI_RE / EMOJI_MAP / emojiToText live in ./js/emojiText.js, shared with
+  // the markdown renderer (which converts at render time so streamed output is
+  // already text). deEmojify below is the one-shot path that converts
+  // already-rendered messages when the toggle is flipped on.
   const _DEOJ_SKIP = '.sources-section, .thinking-toggle, .memory-used-pill';
 
   /** Walk all text nodes inside an element and replace emojis with text descriptions */
@@ -2623,10 +2517,8 @@ function initializeEventListeners() {
     for (const node of nodes) {
       // Skip UI elements that use unicode symbols as functional icons
       if (node.parentElement && node.parentElement.closest(_DEOJ_SKIP)) continue;
-      if (EMOJI_RE.test(node.textContent)) {
-        EMOJI_RE.lastIndex = 0; // reset regex state
-        node.textContent = emojiToText(node.textContent);
-      }
+      const converted = emojiToText(node.textContent);
+      if (converted !== node.textContent) node.textContent = converted;
     }
   }
 
@@ -2634,21 +2526,12 @@ function initializeEventListeners() {
   function applyTextEmojis(enabled) {
     document.body.classList.toggle('text-emojis', enabled);
     if (enabled) {
+      // One-shot conversion of messages already in the DOM (rendered before the
+      // toggle was on). New/streamed messages are converted at render time by
+      // the markdown renderer, so no live MutationObserver is needed.
       document.querySelectorAll('.msg .body').forEach(deEmojify);
     }
   }
-
-  // Observe chat history for new/changed messages — de-emojify on the fly
-  let _deEmojifyTimer = null;
-  const _chatObs = new MutationObserver(() => {
-    if (!document.body.classList.contains('text-emojis')) return;
-    clearTimeout(_deEmojifyTimer);
-    _deEmojifyTimer = setTimeout(() => {
-      document.querySelectorAll('.msg .body').forEach(deEmojify);
-    }, 150);
-  });
-  const _chatBox = document.getElementById('chat-history');
-  if (_chatBox) _chatObs.observe(_chatBox, { childList: true, subtree: true });
 
   // Migrate old toolbar visibility key if present
   (function migrateOldToolbarVis() {

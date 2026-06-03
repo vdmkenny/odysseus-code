@@ -6,6 +6,7 @@
 
 import uiModule from './ui.js';
 import { splitTableRow } from './markdown/tableRow.js';
+import { emojiToText, EMOJI_RE } from './emojiText.js';
 
 var escapeHtml = uiModule.esc;
 
@@ -311,7 +312,8 @@ function _svgifyText(text) {
   }
   return out;
 }
-/** When "Text-only Emojis" is on, keep Unicode in HTML so deEmojify() can strip them. */
+/** True when emoji should render as monochrome SVG (default). False when the
+ *  "Text-only Emojis" toggle is on — then emoji are converted to `:text:`. */
 function _useSvgEmoji() {
   return typeof document === 'undefined' || !document.body?.classList.contains('text-emojis');
 }
@@ -330,6 +332,32 @@ export function svgifyEmoji(html) {
     if (codeDepth === 0 && _EMOJI_RE.test(parts[i])) parts[i] = _svgifyText(parts[i]);
   }
   return parts.join('');
+}
+
+/** "Text-only Emojis" mode: replace emoji in rendered HTML with `:text:`,
+ *  skipping <pre>/<code>. Done at render time so streamed output is already
+ *  text — no flash of raw emoji that later gets rewritten. */
+export function textifyEmoji(html) {
+  // Guard with the shared EMOJI_RE (non-global → safe for repeated .test) so it
+  // stays in sync with what emojiToText actually converts.
+  if (!html || !EMOJI_RE.test(html)) return html;
+  const parts = html.split(/(<[^>]*>)/);   // odd indices = tags
+  let codeDepth = 0;
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) {
+      const t = parts[i].toLowerCase();
+      if (/^<(pre|code)[\s>]/.test(t)) codeDepth++;
+      else if (/^<\/(pre|code)\s*>/.test(t)) codeDepth = Math.max(0, codeDepth - 1);
+      continue;
+    }
+    if (codeDepth === 0 && EMOJI_RE.test(parts[i])) parts[i] = emojiToText(parts[i]);
+  }
+  return parts.join('');
+}
+
+/** Emoji-render a rendered HTML string per the active mode (SVG vs text). */
+function _renderEmoji(html) {
+  return _useSvgEmoji() ? svgifyEmoji(html) : textifyEmoji(html);
 }
 /**
  * Generic collapsible section that reuses the thinking-dropdown styling and its
@@ -365,7 +393,7 @@ export function processWithThinking(text) {
     html += mdToHtml(content);
   }
 
-  return _useSvgEmoji() ? svgifyEmoji(html) : html;
+  return _renderEmoji(html);
 }
 
 /**
@@ -625,7 +653,7 @@ export function mdToHtml(src) {
     s = s.replace(`___CODE_BLOCK_${index}___`, block);
   });
 
-  return _useSvgEmoji() ? svgifyEmoji(s) : s;
+  return _renderEmoji(s);
 }
 
 /**
