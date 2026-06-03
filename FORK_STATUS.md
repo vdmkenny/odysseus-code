@@ -6,7 +6,7 @@ depend on each other. Upstream = `pewdiepie-archdaemon/odysseus`.
 This `main` branch is the fork's running build: latest upstream `main` + all the
 open-PR branches + fork-only items, combined.
 
-_Last updated: 2026-06-03 (dead-code cleanup PRs #2214, #2218, #2221)._
+_Last updated: 2026-06-03 (dead-code/dedup cleanup PRs #2214, #2218, #2221, #2269)._
 
 ## Legend
 - **Open PR** — proposed upstream, awaiting review/merge.
@@ -32,6 +32,7 @@ _Last updated: 2026-06-03 (dead-code cleanup PRs #2214, #2218, #2221)._
 | Cleanup: drop unused `UPLOAD_DIR` imports | `chore/rm-unused-upload-dir-import` | [#2214](https://github.com/pewdiepie-archdaemon/odysseus/pull/2214) | Open | issue [#2213](https://github.com/pewdiepie-archdaemon/odysseus/issues/2213) | Pure upstream dead-code removal — 8 unused `from src.constants import UPLOAD_DIR` lines in `routes/document_routes.py`. One file, no behaviour change. Not a fork delta (not carried in the build). Small/focused — the rest of the unused-import findings deliberately left out. |
 | Cleanup: drop unused `uuid` import | `chore/rm-unused-uuid-import` | [#2218](https://github.com/pewdiepie-archdaemon/odysseus/pull/2218) | Open | issue [#2217](https://github.com/pewdiepie-archdaemon/odysseus/issues/2217) | Pure dead-code removal — unused `import uuid` in `app.py`. One line, no behaviour change. Sibling of #2214. |
 | Cleanup: drop unused imports (calendar) | `chore/rm-unused-imports-calendar` | [#2221](https://github.com/pewdiepie-archdaemon/odysseus/pull/2221) | Open | issue [#2220](https://github.com/pewdiepie-archdaemon/odysseus/issues/2220) | Pure dead-code removal — unused `Tuple`, `dateutil.rrule.{rruleset,DAILY,WEEKLY,MONTHLY,YEARLY}`, `get_current_user` in `routes/calendar_routes.py`. One file, no behaviour change. Sibling of #2214/#2218. |
+| Cleanup: dedupe `src/search/analytics.py` into a shim | `chore/dedup-search-analytics` | [#2269](https://github.com/pewdiepie-archdaemon/odysseus/pull/2269) | Open | issue [#2262](https://github.com/pewdiepie-archdaemon/odysseus/issues/2262) | Converts a duplicated full copy into a re-export shim of `services/search/analytics.py` (mirrors `ranking.py`); drops the now-redundant duplicate test. |
 
 All rebased on fresh upstream `main` and use the upstream PR template.
 
