@@ -31,6 +31,9 @@ feature — none of the above.
 
 Upstream enforces `CONTRIBUTING.md` mechanically:
 
+- **ALWAYS re-read `CONTRIBUTING.md` fresh** (from `origin/main`) before opening
+  or updating any issue or PR, and verify the submission against it — it changes,
+  and conformance is gated. Use the current issue/PR templates.
 - **Tooling/CI changes** (workflows, dev tooling, packaging) → **open an issue
   first**; don't PR them cold (see closed #1015).
 - **Any change under `static/` that draws to the DOM** is "visual" → **attach a
