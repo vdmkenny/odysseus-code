@@ -2547,6 +2547,10 @@ async def stream_agent_loop(
             if result.get("doc_id"):
                 tool_event["doc_id"] = result["doc_id"]
                 tool_event["doc_title"] = result.get("title", "")
+            # Persist the file-write/edit diff so it re-renders on reload — without
+            # this the diff shows live but vanishes from saved history.
+            if result.get("diff"):
+                tool_event["diff"] = result["diff"]
             tool_events.append(tool_event)
             if block.tool_type in _VERIFIER_EFFECTFUL_TOOLS:
                 _effectful_used = True
