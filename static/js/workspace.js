@@ -63,7 +63,11 @@ function _render(data) {
   _curPath = data.path;
   const body = _modal.querySelector('#workspace-body');
   const pathEl = _modal.querySelector('#workspace-cur-path');
-  if (pathEl) pathEl.textContent = data.path;
+  if (pathEl) {
+    // Reflect the resolved (realpath) location back into the editable field.
+    pathEl.value = data.path;
+    pathEl.title = data.path;
+  }
   let rows = '';
   if (data.parent) {
     rows += `<div class="workspace-row workspace-up" data-path="${encodeURIComponent(data.parent)}">↑ ..</div>`;
@@ -94,21 +98,31 @@ function _getModal() {
   _modal.className = 'modal';
   _modal.style.display = 'none';
   _modal.innerHTML = `
-    <div class="modal-content workspace-modal-content">
+    <div class="modal-content">
       <div class="modal-header">
         <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Select workspace</h4>
         <button class="close-btn" id="workspace-close" aria-label="Close">✖</button>
       </div>
-      <div class="workspace-cur" id="workspace-cur-path"></div>
+      <input type="text" class="styled-prompt-input workspace-cur" id="workspace-cur-path"
+             spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
+             placeholder="Type or paste a folder path, then press Enter" />
       <div class="modal-body workspace-body" id="workspace-body"></div>
       <div class="modal-footer workspace-footer">
-        <button type="button" class="workspace-btn" id="workspace-cancel">Cancel</button>
-        <button type="button" class="workspace-btn workspace-btn-primary" id="workspace-use">Use this folder</button>
+        <button type="button" class="confirm-btn confirm-btn-secondary" id="workspace-cancel">Cancel</button>
+        <button type="button" class="confirm-btn confirm-btn-primary" id="workspace-use">Use this folder</button>
       </div>
     </div>`;
   document.body.appendChild(_modal);
   _modal.querySelector('#workspace-close').addEventListener('click', closeWorkspaceBrowser);
   _modal.querySelector('#workspace-cancel').addEventListener('click', closeWorkspaceBrowser);
+  // Editable path bar: Enter navigates to a typed/pasted folder.
+  _modal.querySelector('#workspace-cur-path').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = e.target.value.trim();
+      if (v) _navigate(v);
+    }
+  });
   _modal.querySelector('#workspace-use').addEventListener('click', () => {
     setWorkspace(_curPath);
     if (uiModule && uiModule.showToast) uiModule.showToast(`Workspace set: ${_basename(_curPath)}`);

@@ -16,12 +16,13 @@ def test_workspace_resolver_confines():
     assert _resolve_tool_path_in_workspace(ws, "a.txt") == real
     # absolute path inside the workspace is allowed
     assert _resolve_tool_path_in_workspace(ws, os.path.join(ws, "a.txt")) == real
-    # absolute path outside is rejected
+    # absolute path outside is rejected (sibling temp dir, portable across OSes)
+    outside = tempfile.mkdtemp()
     with pytest.raises(ValueError):
-        _resolve_tool_path_in_workspace(ws, "/etc/hosts")
+        _resolve_tool_path_in_workspace(ws, os.path.join(outside, "x.txt"))
     # parent-escape is rejected
     with pytest.raises(ValueError):
-        _resolve_tool_path_in_workspace(ws, "../../etc/passwd")
+        _resolve_tool_path_in_workspace(ws, os.path.join("..", "..", "escape.txt"))
 
 
 def test_workspace_resolver_blocks_sensitive():
@@ -42,12 +43,17 @@ async def test_read_write_confined_in_workspace():
     # Read it back.
     res = await _direct_fallback("read_file", "note.txt", workspace=ws)
     assert res["exit_code"] == 0 and res["output"] == "hello"
-    # Reading outside the workspace is rejected.
-    res = await _direct_fallback("read_file", "/etc/hosts", workspace=ws)
+    # Reading outside the workspace is rejected (sibling temp dir, portable).
+    outside = tempfile.mkdtemp()
+    outside_file = os.path.join(outside, "secret.txt")
+    open(outside_file, "w").write("nope")
+    res = await _direct_fallback("read_file", outside_file, workspace=ws)
     assert res["exit_code"] == 1 and "outside the workspace" in res["error"]
     # Writing outside is rejected (file must not be created).
-    res = await _direct_fallback("write_file", "/etc/_ws_escape.txt\nx", workspace=ws)
+    escape = os.path.join(outside, "_ws_escape.txt")
+    res = await _direct_fallback("write_file", f"{escape}\nx", workspace=ws)
     assert res["exit_code"] == 1 and "outside the workspace" in res["error"]
+    assert not os.path.exists(escape)
 
 
 def test_browse_is_admin_gated(monkeypatch):
@@ -72,9 +78,11 @@ def test_browse_is_admin_gated(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_bash_runs_with_workspace_cwd():
+async def test_subprocess_runs_with_workspace_cwd():
+    """bash/python subprocesses run with cwd set to the workspace. Use the
+    python tool for an OS-agnostic cwd probe (Windows cmd has no `pwd`)."""
     ws = tempfile.mkdtemp()
-    res = await _direct_fallback("bash", "pwd", workspace=ws)
+    res = await _direct_fallback("python", "import os; print(os.getcwd())", workspace=ws)
     assert res["exit_code"] == 0
     assert os.path.realpath(res["output"].strip()) == os.path.realpath(ws)
 
@@ -92,9 +100,12 @@ async def test_edit_file_confined_in_workspace():
         {"path": "f.txt", "old_string": "foo", "new_string": "baz"}), workspace=ws)
     assert res["exit_code"] == 0
     assert open(os.path.join(ws, "f.txt")).read() == "baz bar"
-    # Editing outside the workspace is rejected.
+    # Editing outside the workspace is rejected (sibling temp dir, portable).
+    outside = tempfile.mkdtemp()
+    outside_file = os.path.join(outside, "f.txt")
+    open(outside_file, "w").write("a")
     res = await _do_edit_file(json.dumps(
-        {"path": "/etc/hosts", "old_string": "a", "new_string": "b"}), workspace=ws)
+        {"path": outside_file, "old_string": "a", "new_string": "b"}), workspace=ws)
     assert res["exit_code"] == 1 and "outside the workspace" in res["error"]
 
 
@@ -106,11 +117,12 @@ async def test_grep_and_ls_confined_in_workspace():
     # grep with no path searches the workspace root and finds the match.
     res = await _direct_fallback("grep", json.dumps({"pattern": "hello"}), workspace=ws)
     assert res["exit_code"] == 0 and "doc.txt" in res["output"]
-    # grep pointed outside the workspace is rejected.
-    res = await _direct_fallback("grep", json.dumps({"pattern": "x", "path": "/etc"}), workspace=ws)
+    # grep pointed outside the workspace is rejected (sibling temp dir, portable).
+    outside = tempfile.mkdtemp()
+    res = await _direct_fallback("grep", json.dumps({"pattern": "x", "path": outside}), workspace=ws)
     assert res["exit_code"] == 1 and "outside the workspace" in res["error"]
     # ls of the workspace lists its files; ls outside is rejected.
     res = await _direct_fallback("ls", "", workspace=ws)
     assert res["exit_code"] == 0 and "doc.txt" in res["output"]
-    res = await _direct_fallback("ls", "/etc", workspace=ws)
+    res = await _direct_fallback("ls", outside, workspace=ws)
     assert res["exit_code"] == 1 and "outside the workspace" in res["error"]

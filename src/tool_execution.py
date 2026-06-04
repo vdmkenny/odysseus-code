@@ -293,8 +293,13 @@ def _resolve_tool_path_in_workspace(workspace: str, raw_path: str) -> str:
             f"(e.g. .ssh, .gnupg) or matches a sensitive filename"
         )
     if resolved != base:
+        # normcase so containment holds on case-insensitive filesystems
+        # (Windows, default macOS): it lowercases on Windows and is a no-op on
+        # POSIX. commonpath raises ValueError across Windows drives (C: vs D:)
+        # or mixed abs/rel — both mean "outside", so the except rejects them.
+        nbase = os.path.normcase(base)
         try:
-            if os.path.commonpath([resolved, base]) != base:
+            if os.path.commonpath([os.path.normcase(resolved), nbase]) != nbase:
                 raise ValueError
         except ValueError:
             raise ValueError(f"path '{raw_path}' is outside the workspace ({workspace})")
