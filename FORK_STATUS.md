@@ -6,7 +6,7 @@ depend on each other. Upstream = `pewdiepie-archdaemon/odysseus`.
 This `main` branch is the fork's running build: latest upstream `main` + all the
 open-PR branches + fork-only items, combined.
 
-_Last updated: 2026-06-03 (dead-code/dedup cleanup PRs #2214, #2218, #2221, #2269)._
+_Last updated: 2026-06-04 (all branches + fork main rebased on upstream; #2269 closed as dup of #2264)._
 
 ## Legend
 - **Open PR** — proposed upstream, awaiting review/merge.
