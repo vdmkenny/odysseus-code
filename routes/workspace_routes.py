@@ -69,6 +69,20 @@ def setup_workspace_routes():
         ws = os.path.realpath(os.path.expanduser((path or "").strip()))
         if not path.strip() or not os.path.isdir(ws):
             raise HTTPException(status_code=400, detail="A valid workspace folder is required")
+        # Must be an actual git worktree, not just any server directory the
+        # browser can name — same confinement premise as the agent git tool.
+        git_bin = shutil.which("git")
+        if not git_bin:
+            raise HTTPException(status_code=500, detail="git is not installed on the server")
+        try:
+            probe = subprocess.run(
+                [git_bin, "-C", ws, "rev-parse", "--is-inside-work-tree"],
+                capture_output=True, text=True, timeout=5,
+            )
+        except Exception:
+            probe = None
+        if not probe or probe.returncode != 0 or (probe.stdout or "").strip() != "true":
+            raise HTTPException(status_code=400, detail="Not a git repository")
         from src.tool_execution import _direct_fallback
         result = await _direct_fallback("git", command, workspace=ws)
         return result or {"error": "git: execution failed", "exit_code": 1}

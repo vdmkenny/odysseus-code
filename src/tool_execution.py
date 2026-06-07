@@ -371,6 +371,15 @@ _GIT_MAX_OUTPUT = 12_000
 _FORGE_ALLOWED = frozenset({
     "pr", "mr", "issue", "repo", "release", "label", "milestone",
 })
+# Destructive second-level verbs rejected before reaching gh/glab — the
+# top-level allowlist alone would otherwise permit `repo delete`,
+# `release delete`, `issue delete`, `pr merge --delete-branch`, etc.
+_FORGE_BLOCKED_SUBVERBS = frozenset({
+    "delete", "merge", "transfer", "archive", "rename", "fork", "sync",
+})
+# Path-redirecting git global options the agent must not be able to inject
+# (they would escape the workspace by pointing git at another tree/dir).
+_GIT_BANNED_ARGS = frozenset({"-C", "--git-dir", "--work-tree", "--exec-path"})
 _FORGE_TIMEOUT = 90
 _FORGE_MAX_OUTPUT = 12_000
 
@@ -1053,6 +1062,18 @@ async def _direct_fallback(
             sub = argv[0].lower()
             if sub in _GIT_BLOCKED or sub not in _GIT_ALLOWED:
                 return {"error": f"git: subcommand '{sub}' is not allowed.", "exit_code": 1}
+            rest = argv[1:]
+            # Per-subcommand argument validation — the top-level allowlist alone
+            # is too coarse for an agent/browser-exposed tool.
+            # 1. No path-redirecting global options (workspace escape).
+            if any(a in _GIT_BANNED_ARGS or a.split("=", 1)[0] in _GIT_BANNED_ARGS for a in rest):
+                return {"error": "git: path-redirecting options (-C/--git-dir/--work-tree) are not allowed.", "exit_code": 1}
+            # 2. `remote` is read-only: no add/set-url/remove/rename/prune.
+            if sub == "remote" and rest and rest[0] not in ("-v", "--verbose", "show", "get-url"):
+                return {"error": "git remote: only read-only forms allowed (remote, -v, show, get-url) — mutating the remote is blocked.", "exit_code": 1}
+            # 3. `init` operates on the workspace only — reject a target path.
+            if sub == "init" and any(not a.startswith("-") for a in rest):
+                return {"error": "git init: a target path is not allowed — init operates on the workspace.", "exit_code": 1}
             base = os.path.realpath(workspace)
             cmd = [git_bin, "-C", base]
             # Inject a commit identity so commits work without a configured
@@ -1125,6 +1146,10 @@ async def _direct_fallback(
             top = argv[0].lower()
             if top not in _FORGE_ALLOWED:
                 return {"error": f"forge: '{top}' is not allowed (use pr/mr, issue, repo, release, label).", "exit_code": 1}
+            # Reject destructive second-level verbs before they reach gh/glab.
+            subverb = argv[1].lower() if len(argv) > 1 else ""
+            if subverb in _FORGE_BLOCKED_SUBVERBS:
+                return {"error": f"forge: '{top} {subverb}' is not allowed (destructive). Use read/create forms (list, view, create, comment).", "exit_code": 1}
             try:
                 proc = await asyncio.create_subprocess_exec(
                     cli_path, *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,

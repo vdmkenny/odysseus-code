@@ -145,7 +145,7 @@ FUNCTION_TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "git",
-            "description": "Run a git command in the active workspace (the repo). Use for version control: status, diff, log, show, branch, add, commit, checkout/switch, restore, reset, stash, merge, rebase, push, pull, fetch. PREFER this over `bash git` — confined to the workspace, structured. Requires a workspace. Commits get an agent identity automatically. Not allowed: config/clone/daemon/remote-url changes.",
+            "description": "Run a git command in the active workspace (the repo). Use for version control: status, diff, log, show, branch, add, commit, checkout/switch, restore, reset, stash, merge, rebase, push, pull, fetch. PREFER this over `bash git` — confined to the workspace, structured. Requires a workspace. Commits get an agent identity automatically. Not allowed: config/clone/daemon, remote mutation (only read-only `remote`/`-v`/`show`/`get-url`), `init` with a target path, and path-redirecting options (-C/--git-dir/--work-tree).",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -159,7 +159,7 @@ FUNCTION_TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "forge",
-            "description": "Run a GitHub/GitLab CLI command in the active workspace to manage pull/merge requests, issues, releases. Auto-detects `gh` (GitHub) or `glab` (GitLab) from the repo's remote; say `pr ...` either way (mapped to `mr` for GitLab). e.g. 'pr create --fill', 'pr list', 'pr view 12', 'issue list', 'repo view'. Returns a clear message if no forge CLI is installed/authenticated. Requires a workspace.",
+            "description": "Run a GitHub/GitLab CLI command in the active workspace to manage pull/merge requests, issues, releases. Auto-detects `gh` (GitHub) or `glab` (GitLab) from the repo's remote; say `pr ...` either way (mapped to `mr` for GitLab). e.g. 'pr create --fill', 'pr list', 'pr view 12', 'issue list', 'repo view'. Returns a clear message if no forge CLI is installed/authenticated. Requires a workspace. Destructive subcommands are not allowed (delete, pr merge, transfer, archive, rename, fork, sync).",
             "parameters": {
                 "type": "object",
                 "properties": {

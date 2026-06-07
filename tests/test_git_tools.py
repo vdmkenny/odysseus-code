@@ -130,3 +130,72 @@ def test_gitctx_unborn_branch_repo(tmp_path):
     subprocess.run(["git", "-C", d, "init", "-q"], check=True)
     out = _workspace_git_context(d)
     assert "## GIT" in out and "git repo" in out
+
+
+# ── git: argument-level policy (alteixeira20 review) ────────────────────────
+
+def test_git_remote_mutation_blocked(repo):
+    for bad in ("remote add origin https://evil.example/x.git",
+                "remote set-url origin https://evil2.example/x.git",
+                "remote remove origin",
+                "remote rename origin upstream"):
+        r = _run("git", bad, workspace=repo)
+        assert r["exit_code"] == 1 and "read-only" in r["error"], bad
+
+
+def test_git_remote_readonly_allowed(repo):
+    subprocess.run(["git", "-C", repo, "remote", "add", "origin",
+                    "https://github.com/foo/bar.git"], check=True)
+    r = _run("git", "remote -v", workspace=repo)
+    assert r["exit_code"] == 0 and "origin" in r["output"]
+
+
+def test_git_init_with_path_blocked(repo, tmp_path):
+    outside = str(tmp_path / "outside-created-by-init")
+    r = _run("git", f"init {outside}", workspace=repo)
+    assert r["exit_code"] == 1 and "not allowed" in r["error"]
+    assert not os.path.exists(outside)
+
+
+def test_git_path_redirect_option_blocked(repo):
+    for bad in ("status -C /tmp", "log --git-dir=/tmp/.git", "status --work-tree /tmp"):
+        r = _run("git", bad, workspace=repo)
+        assert r["exit_code"] == 1 and "not allowed" in r["error"], bad
+
+
+# ── forge: destructive second-level verbs rejected before reaching the CLI ───
+
+def _fake_forge_cli(tmp_path, monkeypatch, name="gh"):
+    binp = tmp_path / "bin"
+    binp.mkdir(exist_ok=True)
+    f = binp / name
+    f.write_text("#!/bin/sh\necho should-not-run\nexit 0\n")
+    f.chmod(0o755)
+    monkeypatch.setenv("PATH", str(binp) + os.pathsep + os.environ.get("PATH", ""))
+
+
+def test_forge_destructive_subverb_blocked(repo, tmp_path, monkeypatch):
+    _fake_forge_cli(tmp_path, monkeypatch, "gh")
+    subprocess.run(["git", "-C", repo, "remote", "add", "origin",
+                    "https://github.com/foo/bar.git"], check=True)
+    for bad in ("repo delete foo/bar --yes", "release delete v1.0.0 --yes",
+                "issue delete 1 --yes", "label delete production --yes",
+                "pr merge 1 --squash --delete-branch"):
+        r = _run("forge", bad, workspace=repo)
+        assert r["exit_code"] == 1 and "not allowed" in r["error"], bad
+        assert "should-not-run" not in (r.get("output") or ""), bad
+
+
+# ── /api/workspace/git route: worktree validation ──────────────────────────
+
+def test_workspace_git_route_rejects_non_repo(tmp_path, monkeypatch):
+    import routes.workspace_routes as wr
+    from unittest.mock import MagicMock
+    monkeypatch.setattr(wr, "get_current_user", lambda r: "admin")
+    monkeypatch.setattr(wr, "owner_is_admin_or_single_user", lambda o: True)
+    router = wr.setup_workspace_routes()
+    ep = next(r.endpoint for r in router.routes
+              if getattr(r, "path", "").endswith("/git") and "POST" in getattr(r, "methods", set()))
+    with pytest.raises(Exception) as ei:
+        asyncio.run(ep(request=MagicMock(), command="status", path=str(tmp_path)))
+    assert "git repository" in str(ei.value)
