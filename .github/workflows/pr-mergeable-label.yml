@@ -1,0 +1,89 @@
+name: ci / PR mergeable label
+
+on:
+  push:
+    branches: [dev]
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, labeled]
+
+# Labels live on the issues API; mergeable state needs the pulls API.
+permissions:
+  issues: write
+  pull-requests: write
+
+# A burst of merges into dev can queue several runs; let the latest win.
+concurrency:
+  group: pr-mergeable-label-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mergeable-label:
+    name: Flag unmergeable PRs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        with:
+          script: |
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const READY = "ready for review";
+            const CONFLICT = "merge conflict";
+
+            // Ensure the conflict label exists (red). Ignore if already present.
+            try {
+              await github.rest.issues.getLabel({ ...repo, name: CONFLICT });
+            } catch {
+              await github.rest.issues.createLabel({
+                ...repo, name: CONFLICT, color: "B60205",
+                description: "Conflicts with the base branch; needs a rebase before review.",
+              }).catch(() => {});
+            }
+
+            // Which PRs to check:
+            //  - a PR event: just that PR.
+            //  - a push to dev: every open PR that is currently 'ready for review'
+            //    or already flagged 'merge conflict' (bounds the work; a dev push
+            //    only changes mergeability for those we care about).
+            let prs = [];
+            if (context.eventName === "pull_request_target") {
+              prs = [{ number: context.payload.pull_request.number }];
+            } else {
+              const all = await github.paginate(github.rest.pulls.list, { ...repo, state: "open", per_page: 100 });
+              prs = all
+                .filter(p => p.labels.some(l => l.name === READY || l.name === CONFLICT))
+                .map(p => ({ number: p.number }));
+            }
+
+            // mergeable is computed asynchronously, so it is often null right
+            // after an event. Poll a few times until GitHub has computed it.
+            async function resolved(number) {
+              for (let i = 0; i < 5; i++) {
+                const { data } = await github.rest.pulls.get({ ...repo, pull_number: number });
+                if (data.mergeable !== null) return data;
+                await new Promise(r => setTimeout(r, 3000));
+              }
+              return null;
+            }
+
+            for (const { number } of prs) {
+              const pr = await resolved(number);
+              if (!pr || pr.state !== "open" || pr.draft) continue;
+              if (pr.user && pr.user.type === "Bot") continue;
+              const labels = pr.labels.map(l => l.name);
+
+              if (pr.mergeable === false) {
+                if (labels.includes(READY)) {
+                  await github.rest.issues.removeLabel({ ...repo, issue_number: number, name: READY }).catch(() => {});
+                }
+                if (!labels.includes(CONFLICT)) {
+                  await github.rest.issues.addLabels({ ...repo, issue_number: number, labels: [CONFLICT] });
+                  await github.rest.issues.createComment({
+                    ...repo, issue_number: number,
+                    body: "This PR conflicts with `dev` and can't be merged as-is, so I removed the `ready for review` label and added `merge conflict`. Please rebase on the latest `dev` and resolve the conflicts; the label clears automatically once it's mergeable again.",
+                  });
+                }
+              } else if (pr.mergeable === true) {
+                if (labels.includes(CONFLICT)) {
+                  await github.rest.issues.removeLabel({ ...repo, issue_number: number, name: CONFLICT }).catch(() => {});
+                }
+              }
+            }
