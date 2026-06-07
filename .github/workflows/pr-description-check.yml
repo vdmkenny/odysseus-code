@@ -91,10 +91,6 @@ jobs:
               }
               if (!labels.includes(CONFLICT)) {
                 await github.rest.issues.addLabels({ ...repo, issue_number: number, labels: [CONFLICT] });
-                await github.rest.issues.createComment({
-                  ...repo, issue_number: number,
-                  body: "This PR conflicts with `dev` and can't be merged as-is, so I removed the `ready for review` label and added `merge conflict`. Please rebase on the latest `dev` and resolve the conflicts; the label clears once it's mergeable again.",
-                });
               }
             } else if (pr.mergeable === true) {
               if (labels.includes(CONFLICT)) {
