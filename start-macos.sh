@@ -188,20 +188,26 @@ fi
 # the tool index never initializes and tool/MCP calling silently degrades.
 # Skip if one is already reachable, or if CHROMADB_HOST points at a remote host.
 CHROMA_PID=""
-CHROMA_HOST="${CHROMADB_HOST:-localhost}"
+CHROMA_HOST="${CHROMADB_HOST:-localhost}"   # what the app connects to
 CHROMA_PORT="${CHROMADB_PORT:-8100}"
-CHROMA_PROBE_HOST="$CHROMA_HOST"
-[ "$CHROMA_PROBE_HOST" = "0.0.0.0" ] && CHROMA_PROBE_HOST="127.0.0.1"
+# Bind + probe on IPv4 loopback. The app connects to "localhost", which Python
+# resolves to 127.0.0.1; binding chroma to the literal "localhost" can land on
+# IPv6 ::1 instead, leaving the app unable to reach it. Pin both to 127.0.0.1.
 CHROMA_BIN="$(dirname "$VENV_PY")/chroma"
-if (exec 3<>"/dev/tcp/$CHROMA_PROBE_HOST/$CHROMA_PORT") 2>/dev/null; then
-    echo "▶ ChromaDB already running on $CHROMA_HOST:$CHROMA_PORT - using it."
-elif [ "$CHROMA_HOST" != "localhost" ] && [ "$CHROMA_HOST" != "127.0.0.1" ]; then
+case "$CHROMA_HOST" in
+    localhost|127.0.0.1) CHROMA_BIND="127.0.0.1" ;;
+    0.0.0.0)             CHROMA_BIND="0.0.0.0" ;;
+    *)                   CHROMA_BIND="" ;;   # remote host - don't start locally
+esac
+if (exec 3<>"/dev/tcp/127.0.0.1/$CHROMA_PORT") 2>/dev/null; then
+    echo "▶ ChromaDB already running on 127.0.0.1:$CHROMA_PORT - using it."
+elif [ -z "$CHROMA_BIND" ]; then
     echo "▶ CHROMADB_HOST=$CHROMA_HOST is remote - not starting a local ChromaDB."
 elif [ -x "$CHROMA_BIN" ]; then
     CHROMA_LOG="${TMPDIR:-/tmp}/odysseus-chromadb.log"
-    echo "▶ Starting ChromaDB in the background on $CHROMA_HOST:$CHROMA_PORT…"
+    echo "▶ Starting ChromaDB in the background on $CHROMA_BIND:$CHROMA_PORT…"
     echo "  logging to $CHROMA_LOG"
-    nohup "$CHROMA_BIN" run --host "$CHROMA_HOST" --port "$CHROMA_PORT" --path "$PWD/data/chroma" >"$CHROMA_LOG" 2>&1 &
+    nohup "$CHROMA_BIN" run --host "$CHROMA_BIND" --port "$CHROMA_PORT" --path "$PWD/data/chroma" >"$CHROMA_LOG" 2>&1 &
     CHROMA_PID=$!
 else
     echo "▶ ChromaDB CLI not found in venv; skipping (tool index will be degraded)."
