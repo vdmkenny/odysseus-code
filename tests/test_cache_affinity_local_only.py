@@ -75,3 +75,20 @@ def test_no_session_id_is_a_noop(monkeypatch):
 ])
 def test_cloud_openai_compatible_hosts_get_no_affinity_fields(monkeypatch, url):
     assert _affinity_fields(url, monkeypatch) == {}
+
+
+# Tailscale CGNAT boundaries (review finding on #3945): only 100.64.0.0/10 is
+# Tailscale; the rest of 100.0.0.0/8 contains public ranges, and a strict
+# provider addressed by one must not receive the llama.cpp extras.
+def test_host_just_below_cgnat_gets_no_affinity_fields(monkeypatch):
+    assert _affinity_fields("http://100.63.255.255/v1", monkeypatch) == {}
+
+
+def test_host_just_above_cgnat_gets_no_affinity_fields(monkeypatch):
+    assert _affinity_fields("http://100.128.0.1/v1", monkeypatch) == {}
+
+
+@pytest.mark.parametrize("host", ["100.64.0.1", "100.100.50.2", "100.127.255.254"])
+def test_hosts_inside_cgnat_get_affinity_fields(monkeypatch, host):
+    payload = _affinity_fields(f"http://{host}:8080/v1", monkeypatch)
+    assert payload == {"session_id": "sess-123", "cache_prompt": True}

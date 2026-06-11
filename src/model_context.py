@@ -5,6 +5,7 @@ Query and cache model context window sizes from OpenAI-compatible APIs.
 Provides token estimation for context usage tracking.
 """
 
+import ipaddress
 import logging
 import sys
 from typing import Dict, List, Optional, Tuple
@@ -19,7 +20,20 @@ _LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "host.docker.interna
 _PRIVATE_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
                      "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
                      "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
-                     "172.30.", "172.31.", "192.168.", "100.")
+                     "172.30.", "172.31.", "192.168.")
+
+# Tailscale uses the CGNAT range 100.64.0.0/10, NOT all of 100.0.0.0/8.
+# A bare "100." prefix would classify public addresses (e.g. AWS ranges
+# under 100.x outside the CGNAT block) as local; routes/model_routes.py
+# already narrows this the same way for endpoint classification.
+_TAILSCALE_CGNAT = ipaddress.ip_network("100.64.0.0/10")
+
+
+def _in_tailscale_range(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host) in _TAILSCALE_CGNAT
+    except ValueError:
+        return False
 
 
 def _normalize_base_for_compare(url: str) -> str:
@@ -73,7 +87,7 @@ def is_local_endpoint(url: str) -> bool:
         return True
     try:
         host = urlparse(url).hostname or ""
-        return host in _LOCAL_HOSTS or host.startswith(_PRIVATE_PREFIXES)
+        return host in _LOCAL_HOSTS or host.startswith(_PRIVATE_PREFIXES) or _in_tailscale_range(host)
     except Exception:
         return False
 
